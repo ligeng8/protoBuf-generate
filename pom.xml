@@ -1,0 +1,155 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>com.lg</groupId>
+	<artifactId>protoBuf-generater</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<properties>
+		<protobuf.input.directory>${project.basedir}/src/main/proto</protobuf.input.directory>
+		<protobuf.output.directory>src/main/java</protobuf.output.directory>
+		<protobuf.protoc.path>${project.basedir}/protoc</protobuf.protoc.path>
+		<protobuf.version>3.6.0</protobuf.version>
+	</properties>
+
+	<dependencies>
+		<!-- https://mvnrepository.com/artifact/com.google.protobuf/protobuf-java -->
+		<dependency>
+			<groupId>com.google.protobuf</groupId>
+			<artifactId>protobuf-java</artifactId>
+			<version>3.6.0</version>
+		</dependency>
+		<dependency>
+			<groupId>io.grpc</groupId>
+			<artifactId>grpc-all</artifactId>
+			<version>0.13.2</version>
+		</dependency>
+	</dependencies>
+	<build>
+		<extensions>
+			<!-- provides os.detected.classifier (i.e. linux-x86_64, osx-x86_64) property -->
+			<extension>
+				<groupId>kr.motd.maven</groupId>
+				<artifactId>os-maven-plugin</artifactId>
+				<version>1.4.1.Final</version>
+			</extension>
+		</extensions>
+		<!-- copy protoc binary into build directory -->
+		<plugins>
+			<plugin>
+				<artifactId>maven-antrun-plugin</artifactId>
+				<dependencies>
+					<dependency>
+						<groupId>ant-contrib</groupId>
+						<artifactId>ant-contrib</artifactId>
+						<version>1.0b3</version>
+						<exclusions>
+							<exclusion>
+								<groupId>ant</groupId>
+								<artifactId>ant</artifactId>
+							</exclusion>
+						</exclusions>
+					</dependency>
+					<dependency>
+						<groupId>org.apache.ant</groupId>
+						<artifactId>ant-apache-regexp</artifactId>
+						<version>1.8.2</version>
+					</dependency>
+					<dependency>
+						<groupId>org.apache.ant</groupId>
+						<artifactId>ant-nodeps</artifactId>
+						<version>1.8.1</version>
+					</dependency>
+				</dependencies>
+				<executions>
+					<execution>
+						<id>compile-protoc</id>
+						<phase>generate-sources</phase>
+						<configuration>
+							<tasks>
+								<taskdef
+									resource="net/sf/antcontrib/antcontrib.properties" />
+								<available property="isExist" file="src/main/proto"
+									type="dir" />
+								<if>
+									<equals arg1="${isExist}" arg2="true" />
+									<then>
+										<property name="protoc.filename"
+											value="protoc.exe" />
+										<property name="protoc.filepath"
+											value="${protobuf.protoc.path}/${protoc.filename}" />
+										<propertyregex property="proto.include"
+											input="${protobuf.input.directory}" regexp=";" replace=" -I"
+											defaultvalue="${protobuf.input.directory}" global="true" />
+										<chmod file="${protoc.filepath}" perm="ugo+rx" />
+
+										<path id="proto.path">
+											<fileset dir="src/main/proto">
+												<include name="**/*.proto" />
+											</fileset>
+										</path>
+
+										<mkdir dir="src/main/java" />
+										<pathconvert pathsep=" " property="proto.files"
+											refid="proto.path" />
+										<exec executable="${protoc.filepath}" failonerror="true">
+											<arg value="--java_out=${protobuf.output.directory}" />
+											<arg value="-I${proto.include}" />
+											<arg line="${proto.files}" />
+										</exec>
+									</then>
+								</if>
+							</tasks>
+							<sourceRoot>${protobuf.output.directory}</sourceRoot>
+						</configuration>
+						<goals>
+							<goal>run</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			<!-- add generated proto buffer classes into the package -->
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>build-helper-maven-plugin</artifactId>
+				<version>1.7</version>
+				<executions>
+					<execution>
+						<id>add-classes</id>
+						<phase>generate-sources</phase>
+						<goals>
+							<goal>add-source</goal>
+						</goals>
+						<configuration>
+							<sources>
+								<source>${protobuf.output.directory}</source>
+							</sources>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<!-- shade protobuf to avoid version conflicts -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-shade-plugin</artifactId>
+				<version>2.4.2</version>
+				<executions>
+					<execution>
+						<phase>package</phase>
+						<goals>
+							<goal>shade</goal>
+						</goals>
+						<configuration>
+							<relocations>
+								<relocation>
+									<pattern>com.google.protobuf</pattern>
+									<shadedPattern>${project.groupId}.${project.artifactId}.shaded.protobuf</shadedPattern>
+								</relocation>
+							</relocations>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+</project>
